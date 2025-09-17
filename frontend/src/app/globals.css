@@ -1,0 +1,129 @@
+@import "tailwindcss";
+@plugin "daisyui";
+
+:root {
+  /* Colores Principales */
+  --color-primary: #2b2b2b;
+  --color-secondary: #4B5563;
+  --color-accent: #A62626;
+  --color-warning: #F59E0B;
+  
+  /* Fondos y Texto */
+  --color-background: #f5f5f5;
+  --color-text: #111827;
+  --color-highlight: #DC2626;
+  
+  /* Superficies */
+  --color-surface: #F9FAFB;
+  --color-surface-secondary: #F3F4F6;
+  --color-border: #D1D5DB;
+  --color-muted: #6B7280;
+  
+  /* Estados */
+  --color-success: #10B981;
+  --color-error: #EF4444;
+  --color-info: #3B82F6;
+  
+  /* Categorías */
+  --color-premium: #2b2b2b;
+  --color-original: #DC2626;
+  --color-compatible: #6B7280;
+  --color-featured: #F59E0B;
+  
+/* Navegación */
+    --color-nav: #111111;
+    --color-nav-txt: #F9FAFB;
+    --color-hover: #1F2937;
+    --color-active: #F87171;
+
+    /* Footer */
+    --color-footer: #111111;
+    --color-footer-txt: #F9FAFB;
+}
+
+
+  :root.dark {
+    /* Colores Principales */
+    --color-primary: #2b2b2b;
+    --color-secondary: #9CA3AF;
+    --color-accent: #A62626;
+    --color-warning: #FBBF24;
+    
+    /* Fondos y Texto */
+    --color-background: #1a1a1a;
+    --color-text: #F9FAFB;
+    --color-highlight: #F87171;
+    
+    /* Superficies */
+    --color-surface: #111827;
+    --color-surface-secondary: #1F2937;
+    --color-border: #374151;
+    --color-muted: #9CA3AF;
+    
+    /* Estados */
+    --color-success: #34D399;
+    --color-error: #F87171;
+    --color-info: #60A5FA;
+    
+    /* Categorías */
+    --color-premium: #F9FAFB;
+    --color-original: #F87171;
+    --color-compatible: #9CA3AF;
+    --color-featured: #FBBF24;
+    
+    /* Navegación */
+    --color-nav: #111111;
+    --color-nav-txt: #F9FAFB;
+    --color-hover: #1F2937;
+    --color-active: #F87171;
+
+    /* Footer */
+    --color-footer: #111111;
+    --color-footer-txt: #F9FAFB;
+  }
+
+
+@theme {
+  /* Colores Principales */
+  --color-primary: var(--color-primary);
+  --color-secondary: var(--color-secondary);
+  --color-accent: var(--color-accent);
+  --color-warning: var(--color-warning);
+  
+  /* Fondos y Texto */
+  --color-background: var(--color-background);
+  --color-text: var(--color-text);
+  --color-highlight: var(--color-highlight);
+  
+  /* Superficies */
+  --color-surface: var(--color-surface);
+  --color-surface-secondary: var(--color-surface-secondary);
+  --color-border: var(--color-border);
+  --color-muted: var(--color-muted);
+  
+  /* Estados */
+  --color-success: var(--color-success);
+  --color-error: var(--color-error);
+  --color-info: var(--color-info);
+  
+  /* Categorías */
+  --color-premium: var(--color-premium);
+  --color-original: var(--color-original);
+  --color-compatible: var(--color-compatible);
+  --color-featured: var(--color-featured);
+  
+  /* Navegación */
+  --color-nav: var(--color-nav);
+  --color-nav-txt: var(--color-nav-text);
+  --color-hover: var(--color-hover);
+  --color-active: var(--color-active);
+
+  /* Footer */
+  --color-footer: var(--color-footer);
+  --color-footer-txt: var(--color-footer-txt)
+}
+
+body {
+  background-color: var(--color-background);
+  color: var(--color-text);
+}
