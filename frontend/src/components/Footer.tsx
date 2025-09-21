@@ -1,3 +1,4 @@
+//component/footer
 export default function Footer() {
     return (
         <footer className="footer sm:footer-horizontal text-footer-txt bg-footer p-10">

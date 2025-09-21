@@ -15,12 +15,14 @@ import {
 } from "@heroicons/react/24/outline";
 
 type FormData = {
-    email: string;
-    password: string;
+    correo: string;
+    contrasena: string;
+    recordar: boolean;
 };
 
 export default function LoginPage() {
     const [showPassword, setShowPassword] = useState(false);
+    const [generalError, setGeneralError] = useState("");
     const { login, isAuthenticated, loading } = useAuth();
     const router = useRouter();
 
@@ -28,45 +30,31 @@ export default function LoginPage() {
         register,
         handleSubmit,
         formState: { errors, isSubmitting },
-        setError,
     } = useForm<FormData>({
         resolver: yupResolver(loginSchema),
     });
 
     // Redireccionar si ya está autenticado
     useEffect(() => {
-        if (isAuthenticated && !loading) {
-            router.push('/dashboard'); // o la ruta que corresponda
+        if (!loading && isAuthenticated) {
+            router.replace("/");
         }
     }, [isAuthenticated, loading, router]);
 
     const onSubmit = async (data: FormData) => {
         try {
-            await login(data.email, data.password);
-            // El redireccionamiento se maneja en el useEffect
+            // Limpiar errores previos
+            setGeneralError("");
+
+            await login(
+                data.correo,
+                data.contrasena,
+                data.recordar
+            );
+
+            // El login ya maneja la redirección internamente
         } catch (error: any) {
-            // Manejar errores específicos de validación
-            if (error.response?.status === 401) {
-                setError('email', {
-                    type: 'manual',
-                    message: 'Credenciales inválidas'
-                });
-                setError('password', {
-                    type: 'manual',
-                    message: 'Credenciales inválidas'
-                });
-            } else if (error.response?.status === 422) {
-                // Errores de validación del servidor
-                const validationErrors = error.response.data?.errors;
-                if (validationErrors) {
-                    Object.keys(validationErrors).forEach((field) => {
-                        setError(field as keyof FormData, {
-                            type: 'manual',
-                            message: validationErrors[field][0]
-                        });
-                    });
-                }
-            }
+            setGeneralError(error.response?.data?.message || "Error en el inicio de sesión");
         }
     };
 
@@ -82,6 +70,18 @@ export default function LoginPage() {
         );
     }
 
+    // Si ya está autenticado, no mostrar el formulario
+    if (isAuthenticated) {
+        return (
+            <main className="min-h-screen flex items-center justify-center bg-background">
+                <div className="text-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-accent mx-auto"></div>
+                    <p className="mt-4 text-muted">Redirigiendo...</p>
+                </div>
+            </main>
+        );
+    }
+
     return (
         <main className="min-h-screen flex items-center justify-center bg-background px-4 relative">
             {/* ThemeToggle fijo arriba derecha */}
@@ -91,21 +91,22 @@ export default function LoginPage() {
 
             <div className="w-full max-w-md bg-surface border border-border rounded-xl p-8 shadow-lg space-y-6 relative">
                 {/* Botón volver atrás */}
-                <button
-                    onClick={() => router.back()}
-                    aria-label="Volver atrás"
-                    className="absolute top-4 left-4 p-2 rounded-md hover:bg-surface-secondary transition"
-                    type="button"
-                >
-                    <ArrowLeftIcon className="h-6 w-6 text-muted" />
-                </button>
+                <Link href="/">
+                    <button
+                        aria-label="Volver atrás"
+                        className="absolute top-4 left-4 p-2 rounded-md hover:bg-surface-secondary transition"
+                        type="button"
+                    >
+                        <ArrowLeftIcon className="h-6 w-6 text-muted" />
+                    </button>
+                </Link>
 
                 {/* Header */}
                 <div className="flex flex-col items-center justify-center space-y-4">
-                    <img 
-                        src="/logo-repuestos-victoria.svg" 
-                        alt="Logo Repuestos Victoria" 
-                        className="h-16 w-auto" 
+                    <img
+                        src="/logo-repuestos-victoria.svg"
+                        alt="Logo Repuestos Victoria"
+                        className="h-16 w-auto"
                     />
                     <h1 className="text-3xl font-bold text-primary text-center">
                         Iniciar sesión
@@ -121,59 +122,75 @@ export default function LoginPage() {
                     className="space-y-4"
                     noValidate
                 >
-                    {/* Email */}
+                    {/* Error general del servidor */}
+                    {generalError && (
+                        <div className="bg-error/10 border border-error/20 rounded-lg p-3 text-sm text-error">
+                            {generalError}
+                        </div>
+                    )}
+
+                    {/* Correo */}
                     <div>
                         <label
-                            htmlFor="email"
+                            htmlFor="correo"
                             className="block mb-1 text-sm font-medium"
                         >
                             Correo electrónico
                         </label>
                         <input
-                            id="email"
+                            id="correo"
                             type="email"
-                            {...register("email")}
+                            {...register("correo")}
                             placeholder="tucorreo@ejemplo.com"
                             className={`w-full input input-bordered bg-surface-secondary border ${
-                                errors.email ? "border-error" : "border-border"
+                                errors.correo
+                                    ? "border-error"
+                                    : "border-border"
                             } placeholder:text-muted focus:border-accent focus:ring-1 focus:ring-accent`}
-                            aria-invalid={errors.email ? "true" : "false"}
-                            aria-describedby="email-error"
+                            aria-invalid={
+                                errors.correo
+                                    ? "true"
+                                    : "false"
+                            }
+                            aria-describedby="correo-error"
                             disabled={isSubmitting}
                         />
-                        {errors.email && (
+                        {errors.correo && (
                             <p
                                 className="mt-1 text-sm text-error"
-                                id="email-error"
+                                id="correo-error"
                             >
-                                {errors.email.message}
+                                {errors.correo.message}
                             </p>
                         )}
                     </div>
 
-                    {/* Password */}
+                    {/* Contraseña */}
                     <div>
                         <label
-                            htmlFor="password"
+                            htmlFor="contrasena"
                             className="block mb-1 text-sm font-medium"
                         >
                             Contraseña
                         </label>
                         <div className="relative">
                             <input
-                                id="password"
+                                id="contrasena"
                                 type={showPassword ? "text" : "password"}
-                                {...register("password")}
+                                autoComplete="current-password"
+                                {...register("contrasena")}
                                 placeholder="••••••••"
                                 className={`w-full input input-bordered pr-10 bg-surface-secondary border ${
-                                    errors.password
+                                    errors.contrasena
                                         ? "border-error"
                                         : "border-border"
                                 } placeholder:text-muted focus:border-accent focus:ring-1 focus:ring-accent`}
                                 aria-invalid={
-                                    errors.password ? "true" : "false"
+                                    errors.contrasena
+                                        ? "true"
+                                        : "false"
                                 }
-                                aria-describedby="password-error"
+                                aria-describedby="contrasena-error"
                                 disabled={isSubmitting}
                             />
                             <button
@@ -194,12 +211,12 @@ export default function LoginPage() {
                                 )}
                             </button>
                         </div>
-                        {errors.password && (
+                        {errors.contrasena && (
                             <p
                                 className="mt-1 text-sm text-error"
-                                id="password-error"
+                                id="contrasena-error"
                             >
-                                {errors.password.message}
+                                {errors.contrasena.message}
                             </p>
                         )}
                         <div className="mt-1 text-right">
@@ -210,6 +227,23 @@ export default function LoginPage() {
                                 ¿Olvidaste tu contraseña?
                             </Link>
                         </div>
+                    </div>
+
+                    {/* Recordar sesión */}
+                    <div className="flex items-center space-x-2">
+                        <input
+                            id="recordar"
+                            type="checkbox"
+                            {...register("recordar")}
+                            className="checkbox checkbox-accent"
+                            disabled={isSubmitting}
+                        />
+                        <label
+                            htmlFor="recordar"
+                            className="text-sm select-none"
+                        >
+                            Recordar sesión
+                        </label>
                     </div>
 
                     {/* Botón enviar */}

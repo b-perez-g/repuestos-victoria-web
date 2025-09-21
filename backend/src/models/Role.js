@@ -14,7 +14,7 @@ class Role {
         let connection;
         try {
             connection = await getConnection();
-            const [rows] = await connection.execute('SELECT * FROM roles');
+            const [rows] = await connection.execute('SELECT * FROM roles ORDER BY id');
             return rows;
         } finally {
             if (connection) connection.release();
@@ -41,14 +41,14 @@ class Role {
     /**
      * Busca un rol por su nombre.
      * 
-     * @param {string} name - Nombre del rol.
+     * @param {string} nombre - Nombre del rol.
      * @returns {Promise<Object|null>} - Rol encontrado o null.
      */
-    static async findByName(name) {
+    static async findByName(nombre) {
         let connection;
         try {
             connection = await getConnection();
-            const [rows] = await connection.execute('SELECT * FROM roles WHERE name = ?', [name]);
+            const [rows] = await connection.execute('SELECT * FROM roles WHERE nombre = ?', [nombre]);
             return rows[0] || null;
         } finally {
             if (connection) connection.release();
@@ -58,17 +58,17 @@ class Role {
     /**
      * Crea un nuevo rol.
      * 
-     * @param {string} name - Nombre del rol.
-     * @param {string} description - Descripción del rol.
+     * @param {string} nombre - Nombre del rol.
+     * @param {string} descripcion - Descripción del rol.
      * @returns {Promise<number>} - ID del rol creado.
      */
-    static async create(name, description) {
+    static async create(nombre, descripcion) {
         let connection;
         try {
             connection = await getConnection();
             const [result] = await connection.execute(
-                'INSERT INTO roles (name, description) VALUES (?, ?)',
-                [name, description]
+                'INSERT INTO roles (nombre, descripcion) VALUES (?, ?)',
+                [nombre, descripcion]
             );
             return result.insertId;
         } finally {
@@ -80,17 +80,17 @@ class Role {
      * Actualiza un rol existente.
      * 
      * @param {number} id - ID del rol.
-     * @param {string} name - Nuevo nombre del rol.
-     * @param {string} description - Nueva descripción del rol.
+     * @param {string} nombre - Nuevo nombre del rol.
+     * @param {string} descripcion - Nueva descripción del rol.
      * @returns {Promise<boolean>} - True si se actualizó correctamente.
      */
-    static async update(id, name, description) {
+    static async update(id, nombre, descripcion) {
         let connection;
         try {
             connection = await getConnection();
             const [result] = await connection.execute(
-                'UPDATE roles SET name = ?, description = ? WHERE id = ?',
-                [name, description, id]
+                'UPDATE roles SET nombre = ?, descripcion = ? WHERE id = ?',
+                [nombre, descripcion, id]
             );
             return result.affectedRows > 0;
         } finally {
@@ -126,9 +126,9 @@ class Role {
         try {
             connection = await getConnection();
             const [rows] = await connection.execute(
-                `SELECT u.id, u.email, u.first_name, u.last_name 
-                 FROM users u 
-                 WHERE u.role_id = ?`,
+                `SELECT u.id, u.correo, u.nombres, u.a_paterno, u.a_materno, u.activo, u.verificado
+                 FROM usuarios u 
+                 WHERE u.id_rol = ?`,
                 [roleId]
             );
             return rows;

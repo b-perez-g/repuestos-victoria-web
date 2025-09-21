@@ -1,3 +1,4 @@
+//midleware/rateLimiter.js
 const rateLimit = require('express-rate-limit');
 
 // Limiter general
@@ -12,7 +13,7 @@ const generalLimiter = rateLimit({
 // Limiter estricto para login
 const loginLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutos
-    max: 5, // 5 intentos
+    max: 500, // 5 intentos
     message: 'Demasiados intentos de login, por favor intenta más tarde',
     skipSuccessfulRequests: true,
 });

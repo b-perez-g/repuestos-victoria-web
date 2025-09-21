@@ -1,19 +1,28 @@
-// src/contexts/auth/AuthContext.tsx
 import { createContext } from 'react';
 
-export type User = {
+export interface User {
   id: string;
   email: string;
   name: string;
   role?: string;
-};
+}
 
-export type AuthContextType = {
+export interface RegisterData {
+  correo: string;
+  contrasena: string;
+  nombres: string;
+  a_paterno: string;
+  a_materno?: string | null;
+  id_rol?: number;
+}
+
+export interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  logout: () => void;
+  login: (correo: string, contrasena: string, recordar?: boolean) => Promise<void>;
+  register: (userData: RegisterData) => Promise<void>;
+  logout: () => Promise<void>;
   loading: boolean;
-};
+}
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);

@@ -1,3 +1,4 @@
+//components/SearchInput.tsx
 import { MagnifyingGlassIcon } from "@heroicons/react/24/outline";
 
 export default function SearchInput() {

@@ -19,12 +19,21 @@ const registerValidation = [
         .notEmpty()
         .trim()
         .isLength({ min: 2, max: 100 })
-        .withMessage('El nombre es requerido'),
+        .withMessage('El nombre es requerido y debe tener entre 2 y 100 caracteres'),
     body('a_paterno')
         .notEmpty()
         .trim()
         .isLength({ min: 2, max: 100 })
-        .withMessage('El apellido es requerido')
+        .withMessage('El apellido paterno es requerido y debe tener entre 2 y 100 caracteres'),
+    body('a_materno')
+        .optional()
+        .trim()
+        .isLength({ max: 100 })
+        .withMessage('El apellido materno no puede tener más de 100 caracteres'),
+    body('id_rol')
+        .optional()
+        .isInt({ min: 1 })
+        .withMessage('El rol debe ser un número válido')
 ];
 
 const loginValidation = [
@@ -55,8 +64,15 @@ const resetPasswordValidation = [
         .withMessage('Token inválido'),
     body('password')
         .isLength({ min: 8 })
-        .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/)
+        .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).+$/)
         .withMessage('La contraseña debe contener mayúsculas, minúsculas, números y caracteres especiales')
+];
+
+const resendVerificationValidation = [
+    body('email')
+        .isEmail()
+        .normalizeEmail()
+        .withMessage('Email inválido')
 ];
 
 // Rutas públicas
@@ -66,16 +82,11 @@ router.post('/refresh-token', AuthController.refreshToken);
 router.post('/forgot-password', passwordResetLimiter, forgotPasswordValidation, AuthController.forgotPassword);
 router.post('/reset-password', resetPasswordValidation, AuthController.resetPassword);
 router.get('/verify-email/:token', AuthController.verifyEmail);
+router.post('/resend-verification', passwordResetLimiter, resendVerificationValidation, AuthController.resendVerification);
 
 // Rutas protegidas
 router.post('/logout', authMiddleware, AuthController.logout);
-router.get('/validate', authMiddleware, (req, res) => {
-    res.json({
-        success: true,
-        message: 'Token válido',
-        user: req.user
-    });
-});
+router.get('/validate', authMiddleware, AuthController.validateToken);
 
 // Verificar disponibilidad de email
 router.post('/check-availability', [
@@ -100,6 +111,7 @@ router.post('/check-availability', [
             field
         });
     } catch (error) {
+        console.error('Error verificando disponibilidad:', error);
         res.status(500).json({
             success: false,
             message: 'Error verificando disponibilidad'

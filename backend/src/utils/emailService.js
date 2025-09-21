@@ -1,3 +1,4 @@
+//utils/emailService.js
 const nodemailer = require('nodemailer');
 require('dotenv').config();
 
@@ -221,7 +222,7 @@ const getEmailTemplate = (title, content, buttonText, buttonUrl) => {
 // Enviar email de verificación
 const sendVerificationEmail = async (email, token) => {
     try {
-        const verificationUrl = `${process.env.FRONTEND_URL}/verify-email?token=${token}`;
+        const verificationUrl = `${process.env.FRONTEND_URL}/verify-email/${token}`;
         
         const content = `
             <h2>¡Bienvenido a <span style="color: #DC2626;">Repuestos Victoria</span>!</h2>

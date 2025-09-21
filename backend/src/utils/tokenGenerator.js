@@ -1,3 +1,4 @@
+//utils/tokenGenerator.js
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 

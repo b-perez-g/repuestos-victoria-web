@@ -1,3 +1,4 @@
+//midleware/roleMiddleware
 /**
  * Este middleware verifica que el usuario autenticado tenga uno de los roles permitidos
  * para acceder a la ruta protegida. Debe colocarse **después del middleware de autenticación**.

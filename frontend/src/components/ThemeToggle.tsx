@@ -1,3 +1,4 @@
+//components/ThemeToggle.tsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -35,8 +36,8 @@ export default function ThemeToggle() {
   return (
     <button
       onClick={toggleTheme}
-      aria-label="Toggle Dark Mode"
       className="btn btn-ghost btn-circle"
+      title = {theme === "light" ? "Cambiar a modo oscuro" : "Cambiar a modo claro"}
     >
       {theme === "light" ? (
         <MoonIcon className="h-6 w-6" />

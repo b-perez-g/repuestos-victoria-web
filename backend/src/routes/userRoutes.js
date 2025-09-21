@@ -7,16 +7,21 @@ const UserController = require('../controllers/userController');
 
 // Validaciones
 const updateProfileValidation = [
-    body('firstName')
+    body('nombres')
         .optional()
         .trim()
         .isLength({ min: 2, max: 100 })
         .withMessage('El nombre debe tener entre 2 y 100 caracteres'),
-    body('lastName')
+    body('a_paterno')
         .optional()
         .trim()
         .isLength({ min: 2, max: 100 })
-        .withMessage('El apellido debe tener entre 2 y 100 caracteres')
+        .withMessage('El apellido paterno debe tener entre 2 y 100 caracteres'),
+    body('a_materno')
+        .optional()
+        .trim()
+        .isLength({ max: 100 })
+        .withMessage('El apellido materno no puede tener más de 100 caracteres')
 ];
 
 const changePasswordValidation = [
@@ -25,21 +30,21 @@ const changePasswordValidation = [
         .withMessage('La contraseña actual es requerida'),
     body('newPassword')
         .isLength({ min: 8 })
-        .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/)
+        .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).+$/)
         .withMessage('La nueva contraseña debe contener mayúsculas, minúsculas, números y caracteres especiales')
         .custom((value, { req }) => value !== req.body.currentPassword)
         .withMessage('La nueva contraseña debe ser diferente a la actual')
 ];
 
 const updateUserValidation = [
-    body('isActive')
+    body('activo')
         .optional()
         .isBoolean()
-        .withMessage('isActive debe ser booleano'),
-    body('roleId')
+        .withMessage('activo debe ser booleano'),
+    body('id_rol')
         .optional()
         .isInt({ min: 1 })
-        .withMessage('roleId debe ser un número entero válido')
+        .withMessage('id_rol debe ser un número entero válido')
 ];
 
 const paginationValidation = [
@@ -50,7 +55,17 @@ const paginationValidation = [
     query('limit')
         .optional()
         .isInt({ min: 1, max: 100 })
-        .withMessage('Limit debe ser un número entre 1 y 100')
+        .withMessage('Limit debe ser un número entre 1 y 100'),
+    query('search')
+        .optional()
+        .trim()
+        .isLength({ max: 100 })
+        .withMessage('Search no puede tener más de 100 caracteres'),
+    query('role')
+        .optional()
+        .trim()
+        .isLength({ max: 50 })
+        .withMessage('Role no puede tener más de 50 caracteres')
 ];
 
 // Todas las rutas requieren autenticación
@@ -65,6 +80,9 @@ router.put('/profile', updateProfileValidation, UserController.updateProfile);
 
 // Cambiar contraseña del usuario actual
 router.post('/change-password', changePasswordValidation, UserController.changePassword);
+
+// Obtener actividad del usuario actual
+router.get('/activity', UserController.getUserActivity);
 
 // ===== RUTAS DE ADMINISTRACIÓN =====
 // Obtener todos los usuarios (Admin)
@@ -113,7 +131,18 @@ router.get(
 router.get(
     '/audit-logs',
     roleMiddleware('admin'),
-    paginationValidation,
+    [
+        ...paginationValidation,
+        query('action')
+            .optional()
+            .trim()
+            .isLength({ max: 100 })
+            .withMessage('Action no puede tener más de 100 caracteres'),
+        query('userId')
+            .optional()
+            .isInt({ min: 1 })
+            .withMessage('UserId debe ser un número entero positivo')
+    ],
     UserController.getAuditLogs
 );
 
@@ -126,7 +155,7 @@ router.post(
 );
 
 // ===== RUTAS DE ROLES =====
-// Obtener todos los roles disponibles
+// Obtener todos los roles disponibles (Admin)
 router.get('/roles', roleMiddleware('admin'), async (req, res) => {
     try {
         const Role = require('../models/Role');
@@ -136,14 +165,15 @@ router.get('/roles', roleMiddleware('admin'), async (req, res) => {
             roles
         });
     } catch (error) {
+        console.error('Error obteniendo roles:', error);
         res.status(500).json({
             success: false,
-            message: 'Error obteniendo roles'
+            message: 'Error interno del servidor'
         });
     }
 });
 
-// Obtener usuarios por rol
+// Obtener usuarios por rol (Admin)
 router.get('/roles/:roleId/users', 
     roleMiddleware('admin'),
     param('roleId').isInt().withMessage('roleId debe ser un número entero'),
@@ -156,9 +186,10 @@ router.get('/roles/:roleId/users',
                 users
             });
         } catch (error) {
+            console.error('Error obteniendo usuarios del rol:', error);
             res.status(500).json({
                 success: false,
-                message: 'Error obteniendo usuarios del rol'
+                message: 'Error interno del servidor'
             });
         }
     }
