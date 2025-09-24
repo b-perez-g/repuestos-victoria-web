@@ -15,15 +15,18 @@ import {
 } from "@heroicons/react/24/outline";
 
 type FormData = {
-    correo: string;
-    contrasena: string;
-    recordar: boolean;
+    email: string;
+    password: string;
+    rememberMe: boolean;
 };
 
 export default function LoginPage() {
     const [showPassword, setShowPassword] = useState(false);
     const [generalError, setGeneralError] = useState("");
-    const { login, isAuthenticated, loading } = useAuth();
+    const [needsVerification, setNeedsVerification] = useState(false);
+    const [verificationEmail, setVerificationEmail] = useState("");
+    const [resendingEmail, setResendingEmail] = useState(false);
+    const { login, isAuthenticated, loading, resendVerification } = useAuth();
     const router = useRouter();
 
     const {
@@ -45,23 +48,43 @@ export default function LoginPage() {
         try {
             // Limpiar errores previos
             setGeneralError("");
+            setNeedsVerification(false);
+            setVerificationEmail("");
 
-            await login(
-                data.correo,
-                data.contrasena,
-                data.recordar
-            );
+            await login(data.email, data.password, data.rememberMe);
 
             // El login ya maneja la redirección internamente
         } catch (error: any) {
-            setGeneralError(error.response?.data?.message || "Error en el inicio de sesión");
+            const response = error.response?.data;
+
+            // Verificar si es un error de cuenta no verificada
+            if (response?.needsVerification) {
+                setNeedsVerification(true);
+                setVerificationEmail(response.email || data.email);
+                setGeneralError(response.message || "Tu cuenta necesita verificación");
+            } else {
+                setGeneralError(
+                    response?.message || "Error en el inicio de sesión"
+                );
+            }
+        }
+    };
+
+    const handleResendVerification = async () => {
+        if (!verificationEmail) return;
+
+        setResendingEmail(true);
+        try {
+            await resendVerification(verificationEmail);
+        } finally {
+            setResendingEmail(false);
         }
     };
 
     // Mostrar loading mientras se verifica la autenticación
     if (loading) {
         return (
-            <main className="min-h-screen flex items-center justify-center bg-background">
+            <main className="min-h-screen flex items-center justify-center bg-gray-50">
                 <div className="text-center">
                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-accent mx-auto"></div>
                     <p className="mt-4 text-muted">Cargando...</p>
@@ -73,7 +96,7 @@ export default function LoginPage() {
     // Si ya está autenticado, no mostrar el formulario
     if (isAuthenticated) {
         return (
-            <main className="min-h-screen flex items-center justify-center bg-background">
+            <main className="min-h-screen flex items-center justify-center bg-gray-50">
                 <div className="text-center">
                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-accent mx-auto"></div>
                     <p className="mt-4 text-muted">Redirigiendo...</p>
@@ -83,7 +106,7 @@ export default function LoginPage() {
     }
 
     return (
-        <main className="min-h-screen flex items-center justify-center bg-background px-4 relative">
+        <main className="min-h-screen flex items-center justify-center bg-gray-50 px-4 relative">
             {/* ThemeToggle fijo arriba derecha */}
             <div className="fixed top-4 right-4 z-50">
                 <ThemeToggle />
@@ -129,68 +152,86 @@ export default function LoginPage() {
                         </div>
                     )}
 
-                    {/* Correo */}
+                    {/* Botón de reenvío de verificación */}
+                    {needsVerification && verificationEmail && (
+                        <div className="bg-warning/10 border border-warning/20 rounded-lg p-3 space-y-3">
+                            <p className="text-sm text-warning-content">
+                                <strong>Cuenta no verificada</strong>
+                            </p>
+                            <p className="text-xs text-muted">
+                                Se enviará un correo de verificación a: <br />
+                                <span className="font-medium text-gray-900 break-all">{verificationEmail}</span>
+                            </p>
+                            <button
+                                type="button"
+                                onClick={handleResendVerification}
+                                disabled={resendingEmail}
+                                className="w-full btn btn-outline btn-warning btn-sm"
+                            >
+                                {resendingEmail ? (
+                                    <>
+                                        <span className="loading loading-spinner loading-xs"></span>
+                                        Enviando...
+                                    </>
+                                ) : (
+                                    'Reenviar correo de verificación'
+                                )}
+                            </button>
+                        </div>
+                    )}
+                    {/* Email */}
                     <div>
                         <label
-                            htmlFor="correo"
+                            htmlFor="email"
                             className="block mb-1 text-sm font-medium"
                         >
                             Correo electrónico
                         </label>
                         <input
-                            id="correo"
+                            id="email"
                             type="email"
-                            {...register("correo")}
+                            {...register("email")}
                             placeholder="tucorreo@ejemplo.com"
                             className={`w-full input input-bordered bg-surface-secondary border ${
-                                errors.correo
-                                    ? "border-error"
-                                    : "border-border"
+                                errors.email ? "border-error" : "border-border"
                             } placeholder:text-muted focus:border-accent focus:ring-1 focus:ring-accent`}
-                            aria-invalid={
-                                errors.correo
-                                    ? "true"
-                                    : "false"
-                            }
-                            aria-describedby="correo-error"
+                            aria-invalid={errors.email ? "true" : "false"}
+                            aria-describedby="email-error"
                             disabled={isSubmitting}
                         />
-                        {errors.correo && (
+                        {errors.email && (
                             <p
                                 className="mt-1 text-sm text-error"
-                                id="correo-error"
+                                id="email-error"
                             >
-                                {errors.correo.message}
+                                {errors.email.message}
                             </p>
                         )}
                     </div>
-
                     {/* Contraseña */}
                     <div>
                         <label
-                            htmlFor="contrasena"
+                            htmlFor="password"
                             className="block mb-1 text-sm font-medium"
                         >
                             Contraseña
                         </label>
                         <div className="relative">
                             <input
-                                id="contrasena"
+                                id="password"
                                 type={showPassword ? "text" : "password"}
                                 autoComplete="current-password"
-                                {...register("contrasena")}
+                                {...register("password")}
                                 placeholder="••••••••"
                                 className={`w-full input input-bordered pr-10 bg-surface-secondary border ${
-                                    errors.contrasena
+                                    errors.password
                                         ? "border-error"
                                         : "border-border"
                                 } placeholder:text-muted focus:border-accent focus:ring-1 focus:ring-accent`}
                                 aria-invalid={
-                                    errors.contrasena
-                                        ? "true"
-                                        : "false"
+                                    errors.password ? "true" : "false"
                                 }
-                                aria-describedby="contrasena-error"
+                                aria-describedby="password-error"
                                 disabled={isSubmitting}
                             />
                             <button
@@ -211,12 +252,12 @@ export default function LoginPage() {
                                 )}
                             </button>
                         </div>
-                        {errors.contrasena && (
+                        {errors.password && (
                             <p
                                 className="mt-1 text-sm text-error"
-                                id="contrasena-error"
+                                id="password-error"
                             >
-                                {errors.contrasena.message}
+                                {errors.password.message}
                             </p>
                         )}
                         <div className="mt-1 text-right">
@@ -228,24 +269,39 @@ export default function LoginPage() {
                             </Link>
                         </div>
                     </div>
-
                     {/* Recordar sesión */}
-                    <div className="flex items-center space-x-2">
-                        <input
-                            id="recordar"
-                            type="checkbox"
-                            {...register("recordar")}
-                            className="checkbox checkbox-accent"
-                            disabled={isSubmitting}
-                        />
-                        <label
-                            htmlFor="recordar"
-                            className="text-sm select-none"
-                        >
-                            Recordar sesión
-                        </label>
-                    </div>
+                    {/* Recordar sesión con explicación */}
+                    <div className="flex flex-col space-y-2">
+                        <div className="flex items-center space-x-2">
+                            <input
+                                id="rememberMe"
+                                type="checkbox"
+                                {...register("rememberMe")}
+                                className="checkbox checkbox-accent"
+                                disabled={isSubmitting}
+                            />
+                            <label
+                                htmlFor="rememberMe"
+                                className="text-sm select-none cursor-pointer"
+                            >
+                                Recordar sesión
+                            </label>
+                        </div>
 
+                        {/* Explicación del comportamiento */}
+                        <div className="text-xs text-muted pl-6">
+                            <p>
+                                <span className="font-medium">✅ Marcado:</span>{" "}
+                                La sesión durará 30 días
+                            </p>
+                            <p>
+                                <span className="font-medium">
+                                    ❌ No marcado:
+                                </span>{" "}
+                                La sesión expira al cerrar el navegador
+                            </p>
+                        </div>
+                    </div>
                     {/* Botón enviar */}
                     <button
                         type="submit"

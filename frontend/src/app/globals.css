@@ -3,83 +3,83 @@
 
 :root {
   /* Colores Principales */
-  --color-primary: #2b2b2b;
-  --color-secondary: #4B5563;
-  --color-accent: #A62626;
-  --color-warning: #F59E0B;
-  
-  /* Fondos y Texto */
-  --color-background: #f5f5f5;
-  --color-text: #111827;
-  --color-highlight: #DC2626;
-  
-  /* Superficies */
-  --color-surface: #F9FAFB;
-  --color-surface-secondary: #F3F4F6;
-  --color-border: #D1D5DB;
-  --color-muted: #6B7280;
-  
-  /* Estados */
-  --color-success: #10B981;
-  --color-error: #EF4444;
-  --color-info: #3B82F6;
-  
-  /* Categorías */
-  --color-premium: #2b2b2b;
-  --color-original: #DC2626;
-  --color-compatible: #6B7280;
-  --color-featured: #F59E0B;
-  
-/* Navegación */
-    --color-nav: #111111;
-    --color-nav-txt: #F9FAFB;
-    --color-hover: #1F2937;
-    --color-active: #F87171;
+  --color-primary: #1a1a1a;          /* Negro más profundo y elegante */
+  --color-secondary: #5a5a5a;        /* Gris neutro sin azul */
+  --color-accent: #dc2626;           /* Rojo vibrante pero profesional */
+  --color-warning: #f59e0b;          /* Ámbar cálido */
 
-    /* Footer */
-    --color-footer: #111111;
-    --color-footer-txt: #F9FAFB;
+  /* Fondos y Texto */
+  --color-background: #fafafa;       /* Blanco más cálido */
+  --color-text: #1a1a1a;            /* Negro más fuerte para mejor contraste */
+  --color-highlight: #ef4444;        /* Rojo más brillante para highlights */
+
+  /* Superficies */
+  --color-surface: #ffffff;          /* Blanco puro para tarjetas */
+  --color-surface-secondary: #f5f5f5; /* Gris neutro muy claro */
+  --color-border: #d4d4d4;          /* Gris neutro para bordes */
+  --color-muted: #6b6b6b;           /* Gris neutro para texto secundario */
+
+  /* Estados */
+  --color-success: #16a34a;          /* Verde más neutro */
+  --color-error: #dc2626;           /* Rojo consistente */
+  --color-info: #374151;            /* Gris oscuro en lugar de azul */
+
+  /* Categorías */
+  --color-premium: #2a2a2a;          /* Gris muy oscuro premium */
+  --color-original: #dc2626;        /* Rojo original */
+  --color-compatible: #6b6b6b;      /* Gris neutro para compatible */
+  --color-featured: #f59e0b;        /* Ámbar para destacados */
+
+  /* Navegación */
+  --color-nav: #1a1a1a;             /* Negro profundo */
+  --color-nav-txt: #ffffff;         /* Blanco puro para mejor contraste */
+  --color-hover: #2a2a2a;           /* Gris oscuro para hover */
+  --color-active: #ef4444;          /* Rojo para estados activos */
+
+  /* Footer */
+  --color-footer: #1a1a1a;          /* Negro profundo */
+  --color-footer-txt: #ffffff;      /* Blanco puro para mejor contraste */
 }
 
 
   :root.dark {
     /* Colores Principales */
-    --color-primary: #2b2b2b;
-    --color-secondary: #9CA3AF;
-    --color-accent: #A62626;
-    --color-warning: #FBBF24;
-    
+    --color-primary: #ffffff;          /* Blanco puro para texto en oscuro */
+    --color-secondary: #a3a3a3;        /* Gris neutro claro */
+    --color-accent: #ef4444;           /* Rojo más brillante en oscuro */
+    --color-warning: #fbbf24;          /* Ámbar brillante */
+
     /* Fondos y Texto */
-    --color-background: #1a1a1a;
-    --color-text: #F9FAFB;
-    --color-highlight: #F87171;
-    
+    --color-background: #262626;       /* Gris oscuro más claro que nav */
+    --color-text: #ffffff;            /* Blanco puro para texto */
+    --color-highlight: #f87171;        /* Rojo suave para highlights */
+
     /* Superficies */
-    --color-surface: #111827;
-    --color-surface-secondary: #1F2937;
-    --color-border: #374151;
-    --color-muted: #9CA3AF;
-    
+    --color-surface: #1a1a1a;          /* Gris neutro oscuro */
+    --color-surface-secondary: #2a2a2a; /* Gris medio neutro */
+    --color-border: #404040;           /* Gris neutro para bordes */
+    --color-muted: #a3a3a3;           /* Gris neutro para texto secundario */
+
     /* Estados */
-    --color-success: #34D399;
-    --color-error: #F87171;
-    --color-info: #60A5FA;
-    
+    --color-success: #22c55e;          /* Verde más neutro brillante */
+    --color-error: #ef4444;           /* Rojo brillante */
+    --color-info: #525252;            /* Gris neutro en lugar de azul */
+
     /* Categorías */
-    --color-premium: #F9FAFB;
-    --color-original: #F87171;
-    --color-compatible: #9CA3AF;
-    --color-featured: #FBBF24;
-    
+    --color-premium: #ffffff;          /* Blanco para premium */
+    --color-original: #ef4444;        /* Rojo brillante */
+    --color-compatible: #a3a3a3;      /* Gris neutro claro */
+    --color-featured: #fbbf24;        /* Ámbar brillante */
+
     /* Navegación */
-    --color-nav: #111111;
-    --color-nav-txt: #F9FAFB;
-    --color-hover: #1F2937;
-    --color-active: #F87171;
+    --color-nav: #1a1a1a;             /* Negro igual al modo claro */
+    --color-nav-txt: #ffffff;         /* Blanco puro */
+    --color-hover: #2a2a2a;           /* Gris neutro oscuro */
+    --color-active: #f87171;          /* Rojo suave */
 
     /* Footer */
-    --color-footer: #111111;
-    --color-footer-txt: #F9FAFB;
+    --color-footer: #1a1a1a;          /* Negro igual al modo claro */
+    --color-footer-txt: #ffffff;      /* Blanco puro */
   }
 
 
@@ -114,13 +114,13 @@
   
   /* Navegación */
   --color-nav: var(--color-nav);
-  --color-nav-txt: var(--color-nav-text);
+  --color-nav-txt: var(--color-nav-txt);
   --color-hover: var(--color-hover);
   --color-active: var(--color-active);
 
   /* Footer */
   --color-footer: var(--color-footer);
-  --color-footer-txt: var(--color-footer-txt)
+  --color-footer-txt: var(--color-footer-txt);
 }
 
 body {

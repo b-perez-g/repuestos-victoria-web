@@ -1,46 +1,18 @@
 'use client';
 
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/auth/useAuth';
+import NotFound from '@/components/NotFound';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
   allowedRoles?: string[];
-  redirectTo?: string;
 }
 
-export default function ProtectedRoute({ 
-  children, 
-  allowedRoles = [], 
-  redirectTo = '/login' 
+export default function ProtectedRoute({
+  children,
+  allowedRoles = []
 }: ProtectedRouteProps) {
   const { user, loading, isAuthenticated } = useAuth();
-  const router = useRouter();
-
-  useEffect(() => {
-    if (!loading) {
-      // Si no está autenticado, redirigir al login
-      if (!isAuthenticated) {
-        router.push(redirectTo);
-        return;
-      }
-
-      // Si hay roles específicos requeridos, verificar permisos
-      if (allowedRoles.length > 0 && user) {
-        const hasPermission = allowedRoles.includes(user.role || '');
-        if (!hasPermission) {
-          // Redirigir según el rol del usuario
-          if (user.role === 'admin') {
-            router.push('/admin/dashboard');
-          } else {
-            router.push('/');
-          }
-          return;
-        }
-      }
-    }
-  }, [loading, isAuthenticated, user, allowedRoles, redirectTo, router]);
 
   // Mostrar loading mientras se verifica la autenticación
   if (loading) {
@@ -54,28 +26,29 @@ export default function ProtectedRoute({
     );
   }
 
-  // No mostrar contenido si no está autenticado
+  // Si no está autenticado, mostrar 404
   if (!isAuthenticated) {
-    return null;
+    return (
+      <NotFound
+        title="Página no encontrada"
+        message="Lo sentimos, la página que buscas no existe o no está disponible en este momento."
+        showBackButton={false}
+        showHomeButton={true}
+      />
+    );
   }
 
-  // No mostrar contenido si no tiene permisos
+  // Si hay roles específicos requeridos, verificar permisos
   if (allowedRoles.length > 0 && user) {
     const hasPermission = allowedRoles.includes(user.role || '');
     if (!hasPermission) {
       return (
-        <div className="min-h-screen flex items-center justify-center bg-background">
-          <div className="text-center">
-            <h1 className="text-2xl font-bold text-error mb-4">Acceso Denegado</h1>
-            <p className="text-muted mb-4">No tienes permisos para acceder a esta página.</p>
-            <button 
-              onClick={() => router.back()}
-              className="btn bg-accent text-white hover:brightness-110"
-            >
-              Volver
-            </button>
-          </div>
-        </div>
+        <NotFound
+          title="Página no encontrada"
+          message="Lo sentimos, la página que buscas no existe o no está disponible en este momento."
+          showBackButton={false}
+          showHomeButton={true}
+        />
       );
     }
   }

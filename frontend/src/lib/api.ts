@@ -1,119 +1,135 @@
 import axios from 'axios';
-import Cookies from 'js-cookie';
 import toast from 'react-hot-toast';
+
+// CSRF Token storage
+let csrfToken: string | null = null;
 
 const api = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL,
-  withCredentials: true,
+  withCredentials: true, // ✅ CRÍTICO para cookies
   timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// Request interceptor
-api.interceptors.request.use(
-  (config) => {
-    const token = Cookies.get('token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+// API configurada para: process.env.NEXT_PUBLIC_API_URL
+
+// Function to get CSRF token
+export const getCSRFToken = async (endpoint: string = 'auth'): Promise<string | null> => {
+  try {
+    if (!csrfToken) {
+      const response = await axios.get(
+        `${process.env.NEXT_PUBLIC_API_URL}/${endpoint}/csrf-token`,
+        { withCredentials: true }
+      );
+
+      if (response.data.success) {
+        csrfToken = response.data.csrfToken;
+      }
     }
+    return csrfToken;
+  } catch (error) {
+    return null;
+  }
+};
+
+// Function to clear CSRF token
+export const clearCSRFToken = () => {
+  csrfToken = null;
+};
+
+// ✅ Request interceptor con CSRF
+api.interceptors.request.use(
+  async (config) => {
+    // Add CSRF token for state-changing requests (except categories for now)
+    if (['post', 'put', 'patch', 'delete'].includes(config.method?.toLowerCase() || '')) {
+      // Solo aplicar CSRF a rutas de auth, no a categories
+      if (!config.url?.includes('/categories')) {
+        const token = await getCSRFToken('auth');
+        if (token) {
+          config.headers['X-CSRF-Token'] = token;
+        }
+      }
+    }
+
     return config;
   },
-  (error) => Promise.reject(error)
+  (error) => {
+    console.error('❌ Request interceptor error:', error);
+    return Promise.reject(error);
+  }
 );
 
-// Response interceptor
+// ✅ Response interceptor simplificado
 api.interceptors.response.use(
   (response) => {
-    // No modificar las cookies aquí, el servidor ya las maneja correctamente
     return response;
   },
   async (error) => {
     const originalRequest = error.config;
 
-    // Solo intentar refresh una vez por request
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      originalRequest._retry = true;
-      
-      try {
-        const refreshToken = Cookies.get('refreshToken');
-        
-        if (!refreshToken) {
-          throw new Error('No refresh token available');
-        }
 
-        console.log('Intentando renovar token...');
-        
-        // Hacer request de refresh
-        const response = await axios.post(
-          `${process.env.NEXT_PUBLIC_API_URL}/auth/refresh-token`,
-          {},
-          { 
-            withCredentials: true,
-            headers: {
-              'Cookie': `refreshToken=${refreshToken}`
-            }
-          }
-        );
-        
-        if (response.data.success && response.data.token) {
-          console.log('Token renovado exitosamente');
-          
-          // Actualizar header de la request original
-          originalRequest.headers.Authorization = `Bearer ${response.data.token}`;
-          
-          // Reintentar la request original
-          return api(originalRequest);
-        } else {
-          throw new Error('Refresh failed');
-        }
-      } catch (refreshError) {
-        console.error('Error renovando token:', refreshError);
-        
-        // Limpiar tokens y redirigir
-        Cookies.remove('token');
-        Cookies.remove('refreshToken');
-        
-        // Solo redirigir si no estamos ya en login
-        if (!window.location.pathname.includes('/login')) {
-          window.location.href = '/login';
-        }
-        
-        return Promise.reject(refreshError);
+    // ✅ Manejo de errores CSRF 403 - reintentar con nuevo token
+    if (error.response?.status === 403 &&
+        (error.response?.data?.code === 'CSRF_TOKEN_MISSING' ||
+         error.response?.data?.code === 'CSRF_TOKEN_INVALID') &&
+        !originalRequest._retryCSRF) {
+
+      originalRequest._retryCSRF = true;
+
+
+      // Limpiar token CSRF y obtener uno nuevo
+      clearCSRFToken();
+      const newToken = await getCSRFToken();
+
+      if (newToken) {
+        originalRequest.headers['X-CSRF-Token'] = newToken;
+        return api(originalRequest);
       }
     }
 
-    // Error handling para otros códigos de estado
+    // ✅ Manejo de 401 - renovar token automáticamente
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
+
+      try {
+        console.log('🔄 Token expirado, renovando automáticamente...');
+        const response = await axios.post(
+          `${process.env.NEXT_PUBLIC_API_URL}/auth/refresh-token`,
+          {},
+          { withCredentials: true }
+        );
+
+        if (response.data.success) {
+          console.log('✅ Token renovado exitosamente');
+          return api(originalRequest);
+        }
+      } catch (refreshError) {
+        console.log('❌ Error renovando token:', refreshError);
+        // Clear CSRF token on auth failure
+        clearCSRFToken();
+
+        // No redirigir automáticamente - las páginas protegidas muestran 404
+      }
+    }
+
+    // ✅ Error handling básico
     const message = error.response?.data?.message;
-    
-    switch (error.response?.status) {
-      case 400:
-        if (message && !originalRequest._skipToast) {
-          toast.error(message);
-        }
-        break;
-      case 401:
-        if (!originalRequest._retry && !originalRequest._skipToast) {
-          toast.error('Sesión expirada');
-        }
-        break;
-      case 403:
+    const errorCode = error.response?.data?.code;
+
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      // No mostrar toast de error, las páginas protegidas mostrarán 404
+    } else if (error.response?.status === 403) {
+      // Handle CSRF token errors
+      if (errorCode === 'CSRF_TOKEN_INVALID' || errorCode === 'CSRF_TOKEN_MISSING') {
+        clearCSRFToken();
+        // Don't show error toast for CSRF issues, just retry
+      } else {
         toast.error('No tienes permisos para esta acción');
-        break;
-      case 422:
-        // No mostrar toast para errores de validación, se manejan en formularios
-        break;
-      case 423:
-        toast.error('Cuenta bloqueada temporalmente');
-        break;
-      case 500:
-        toast.error('Error del servidor. Intenta más tarde.');
-        break;
-      default:
-        if (!originalRequest._skipToast) {
-          toast.error(message || 'Ha ocurrido un error');
-        }
+      }
+    } else if (error.response?.status >= 500) {
+      toast.error('Error del servidor');
     }
 
     return Promise.reject(error);

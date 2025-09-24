@@ -3,8 +3,11 @@
 
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { useAuth } from '@/contexts/auth/useAuth';
 import Navbar from '@/components/Navbar';
+import AdminNavbar from '@/components/AdminNavbar';
 import Footer from '@/components/Footer';
+import AdminRedirect from '@/components/AdminRedirect';
 
 export default function ClientLayout({
   children,
@@ -12,6 +15,7 @@ export default function ClientLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const { user, loading } = useAuth();
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
@@ -42,20 +46,39 @@ export default function ClientLayout({
     return routePatterns.some(pattern => pathname.startsWith(pattern));
   };
 
+  const isAdminRoute = () => {
+    return pathname.startsWith('/admin/');
+  };
+
   if (!isMounted) {
     // Evitar renderizado incorrecto en SSR
     return null;
   }
 
   if (shouldHideLayout()) {
-    return <main className="flex-grow px-4 py-6">{children}</main>;
+    return (
+      <AdminRedirect>
+        <main className="flex-grow px-4 py-6">{children}</main>
+      </AdminRedirect>
+    );
   }
 
+  // Layout para rutas admin
+  if (isAdminRoute()) {
+    return (
+      <AdminRedirect>
+        <AdminNavbar />
+        <main className="flex-grow">{children}</main>
+      </AdminRedirect>
+    );
+  }
+
+  // Layout para rutas de cliente
   return (
-    <>
+    <AdminRedirect>
       <Navbar />
       <main className="flex-grow px-4 py-6">{children}</main>
       <Footer />
-    </>
+    </AdminRedirect>
   );
 }

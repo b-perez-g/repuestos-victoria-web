@@ -134,11 +134,22 @@ export default function AdminUsersPage() {
       }
     };
 
-    const style = config[type][status.toString() as 'true' | 'false'];
-    
+    // Normalizar el status a boolean y luego a string
+    const normalizedStatus = Boolean(status);
+    const statusConfig = config[type][normalizedStatus.toString() as 'true' | 'false'];
+
+    // Fallback si statusConfig es undefined
+    if (!statusConfig) {
+      return (
+        <span className="px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+          Desconocido
+        </span>
+      );
+    }
+
     return (
-      <span className={`px-2 py-1 rounded-full text-xs font-medium ${style.bg} ${style.text}`}>
-        {style.label}
+      <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusConfig.bg} ${statusConfig.text}`}>
+        {statusConfig.label}
       </span>
     );
   };

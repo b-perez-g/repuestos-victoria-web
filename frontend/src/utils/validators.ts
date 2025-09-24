@@ -1,14 +1,14 @@
 import * as yup from "yup";
 
 export const loginSchema = yup.object({
-    correo: yup
+    email: yup
         .string()
         .email("Correo inválido")
         .required("El correo es obligatorio"),
-    contrasena: yup
+    password: yup
         .string()
         .required("La contraseña es obligatoria"),
-    recordar: yup
+    rememberMe: yup
         .boolean()
         .default(false)
 });

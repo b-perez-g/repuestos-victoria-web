@@ -75,7 +75,7 @@ export default function Banner() {
             />
             
             {/* Overlay oscuro para mejor legibilidad del texto */}
-            <div className="absolute inset-0 bg-black bg-opacity-40" />
+            <div className="absolute inset-0 bg-primary bg-opacity-40" />
             
             {/* Contenido del slide */}
             <div className="absolute inset-0 flex items-center justify-center text-center text-white px-4">
@@ -86,7 +86,7 @@ export default function Banner() {
                 <p className="text-lg md:text-xl lg:text-2xl font-medium drop-shadow-md">
                   {slide.description}
                 </p>
-                <button className="mt-6 px-8 py-3 bg-gradient-to-r from-red-500 to-orange-600 text-white font-semibold rounded-full hover:from-red-600 hover:to-orange-700 transition-all duration-300 transform hover:scale-105 shadow-lg">
+                <button className="mt-6 px-8 py-3 bg-accent hover:bg-accent/90 text-white font-semibold rounded-full transition-all duration-300 transform hover:scale-105 shadow-lg">
                   Explorar Vehículos
                 </button>
               </div>
@@ -129,7 +129,7 @@ export default function Banner() {
       </div>
 
       {/* Contador de slides */}
-      <div className="absolute top-4 right-4 bg-black bg-opacity-30 backdrop-blur-sm text-white px-3 py-1 rounded-full text-sm font-medium">
+      <div className="absolute top-4 right-4 bg-primary bg-opacity-30 backdrop-blur-sm text-white px-3 py-1 rounded-full text-sm font-medium">
         {currentSlide + 1} / {slides.length}
       </div>
     </div>

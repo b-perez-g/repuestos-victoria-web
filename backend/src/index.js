@@ -12,6 +12,11 @@ require('dotenv').config();
 const { testConnection } = require('./config/database');
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
+const categoryRoutes = require('./routes/categoryRoutes');
+const subcategoryRoutes = require('./routes/subcategoryRoutes');
+const productRoutes = require('./routes/productRoutes');
+
+const bulkImportRoutes = require('./routes/bulkImportRoutes');
 const { generalLimiter } = require('./middleware/rateLimiter');
 
 // Crear aplicación Express
@@ -57,8 +62,8 @@ const corsOptions = {
         }
     },
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-CSRF-Token'],
     exposedHeaders: ['set-cookie'],
     maxAge: 86400 // 24 horas
 };
@@ -85,12 +90,22 @@ app.use(cookieParser());
 // Trust proxy (necesario si está detrás de un proxy/load balancer)
 app.set('trust proxy', 1);
 
-// Rate limiting general
-app.use('/api/', generalLimiter);
+// Rate limiting general - TEMPORALMENTE DESHABILITADO
+//app.use('/api/', generalLimiter);
 
 // Rutas de la API
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/categories', categoryRoutes);
+app.use('/api/subcategories', subcategoryRoutes);
+app.use('/api/products', productRoutes);
+app.use('/api/bulk-import', bulkImportRoutes);
+
+// Ruta temporal para debug productos
+app.post('/api/bulk-import/products-direct', (req, res) => {
+    console.log('✅ Products endpoint directo funciona!');
+    res.json({ success: true, message: 'Products directo funciona' });
+});
 
 // Ruta de salud/status
 app.get('/api/health', (req, res) => {
@@ -260,6 +275,44 @@ const startServer = async () => {
         process.exit(1);
     }
 };
+
+// En index.js - agregar limpieza automática de sesiones
+
+// Función para limpiar sesiones expiradas
+const cleanupExpiredSessions = async () => {
+    try {
+        const { getConnection } = require('./config/database');
+        let connection;
+        
+        try {
+            connection = await getConnection();
+            
+            // Limpiar sesiones expiradas
+            const [sessionResult] = await connection.execute(
+                `DELETE FROM sesiones WHERE expira_en < NOW()`
+            );
+
+            // Limpiar tokens de refresco expirados
+            const [tokenResult] = await connection.execute(
+                `DELETE FROM tokens_refresco WHERE expira_en < NOW()`
+            );
+
+            if (sessionResult.affectedRows > 0 || tokenResult.affectedRows > 0) {
+                console.log(`🧹 Limpieza automática: ${sessionResult.affectedRows} sesiones y ${tokenResult.affectedRows} tokens eliminados`);
+            }
+        } finally {
+            if (connection) connection.release();
+        }
+    } catch (error) {
+        console.error('❌ Error en limpieza automática:', error);
+    }
+};
+
+// Ejecutar limpieza cada hora
+setInterval(cleanupExpiredSessions, 60 * 60 * 1000);
+
+// Ejecutar una vez al iniciar
+setTimeout(cleanupExpiredSessions, 5000);
 
 // Iniciar el servidor
 startServer();

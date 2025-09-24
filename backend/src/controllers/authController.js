@@ -5,6 +5,7 @@ const { validationResult } = require("express-validator");
 const User = require("../models/User");
 const RefreshToken = require("../models/RefreshToken");
 const TokenGenerator = require("../utils/tokenGenerator");
+const logger = require("../utils/logger");
 const {
     sendVerificationEmail,
     sendPasswordResetEmail,
@@ -69,6 +70,7 @@ class AuthController {
                 id_rol: id_rol,
             });
 
+
             // Enviar email de verificación
             try {
                 await sendVerificationEmail(correo, verificationToken);
@@ -106,6 +108,9 @@ class AuthController {
     /**
      * Inicia sesión de un usuario y genera tokens de acceso y refresh.
      */
+
+    // En authController.js - método login modificado
+
     static async login(req, res) {
         try {
             const errors = validationResult(req);
@@ -118,6 +123,30 @@ class AuthController {
             }
 
             const { email, password, rememberMe = false } = req.body;
+
+            // Sanitizar y validar entrada
+            if (!email || !password) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Email y contraseña son requeridos",
+                });
+            }
+
+            // Verificar tipo de datos
+            if (typeof email !== 'string' || typeof password !== 'string') {
+                return res.status(400).json({
+                    success: false,
+                    message: "Tipos de datos inválidos",
+                });
+            }
+
+            // Verificar longitud máxima para prevenir DoS
+            if (email.length > 254 || password.length > 128) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Datos de entrada demasiado largos",
+                });
+            }
 
             // Buscar usuario
             const user = await User.findByEmail(email.toLowerCase().trim());
@@ -158,7 +187,6 @@ class AuthController {
             );
 
             if (!isPasswordValid) {
-                // Incrementar intentos fallidos
                 const attempts = (user.intentos_fallidos || 0) + 1;
                 let lockUntil = null;
 
@@ -203,13 +231,13 @@ class AuthController {
             if (!user.verificado) {
                 return res.status(403).json({
                     success: false,
-                    message:
-                        "Por favor verifica tu email antes de iniciar sesión",
+                    message: "Tu cuenta no está verificada. Revisa tu correo electrónico o solicita un nuevo correo de verificación.",
                     needsVerification: true,
+                    email: user.correo
                 });
             }
 
-            // Generar tokens
+            // ✅ Definir payload para tokens
             const payload = {
                 id: user.id,
                 email: user.correo,
@@ -218,21 +246,60 @@ class AuthController {
                 lastName: user.a_paterno,
             };
 
+            // Generar tokens
             const accessToken = TokenGenerator.generateAccessToken(payload);
             const refreshToken = TokenGenerator.generateRefreshToken({
                 id: user.id,
             });
 
-            // Guardar refresh token
-            const refreshExpiry = new Date(
-                Date.now() + (rememberMe ? 30 : 7) * 24 * 60 * 60 * 1000
-            );
-            await RefreshToken.create(user.id, refreshToken, refreshExpiry);
+            // ✅ CONFIGURACIÓN CORRECTA DE COOKIES SEGÚN REMEMBER ME
+            if (rememberMe) {
+                // 🔒 SESIÓN PERSISTENTE - Cookies con fecha de expiración
+                const cookieOptions = {
+                    httpOnly: true,
+                    secure: process.env.NODE_ENV === "production",
+                    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+                    path: "/",
+                    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 días en milisegundos (reducido de 30)
+                };
 
-            // Resetear intentos fallidos en login exitoso
+                const refreshCookieOptions = {
+                    ...cookieOptions,
+                    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 días
+                };
+
+                res.cookie("token", accessToken, cookieOptions);
+                res.cookie("refreshToken", refreshToken, refreshCookieOptions);
+
+                // Guardar en BD con expiración reducida
+                const refreshExpiry = new Date(
+                    Date.now() + 7 * 24 * 60 * 60 * 1000
+                );
+                await RefreshToken.create(user.id, refreshToken, refreshExpiry);
+            } else {
+                // ⚡ SESIÓN TEMPORAL - Cookies de sesión con expiración corta
+                const sessionCookieOptions = {
+                    httpOnly: true,
+                    secure: process.env.NODE_ENV === "production",
+                    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+                    path: "/",
+                    maxAge: 2 * 60 * 60 * 1000, // 2 horas para sesiones temporales
+                };
+
+                res.cookie("token", accessToken, sessionCookieOptions);
+                res.cookie("refreshToken", refreshToken, sessionCookieOptions);
+
+                // Guardar en BD con expiración muy corta
+                const refreshExpiry = new Date(
+                    Date.now() + 2 * 60 * 60 * 1000
+                ); // 2 horas
+                await RefreshToken.create(user.id, refreshToken, refreshExpiry);
+            }
+
+            // Resetear intentos fallidos
             await User.updateLastLogin(user.id);
 
-            // Crear sesión
+            // Crear sesión con validación
             await AuthController.createSession(
                 user.id,
                 accessToken,
@@ -240,6 +307,9 @@ class AuthController {
                 req.get("user-agent"),
                 rememberMe
             );
+
+            // Verificar límite de sesiones concurrentes (max 5 por usuario)
+            await AuthController.limitConcurrentSessions(user.id, 5);
 
             // Log de auditoría
             await AuthController.logAudit(
@@ -250,38 +320,6 @@ class AuthController {
                 true
             );
 
-            // Configurar cookies con duración correcta
-            const cookieOptions = {
-                httpOnly: true,
-                secure: process.env.NODE_ENV === "production",
-                sameSite: "strict",
-            };
-
-            // Configurar duración según rememberMe
-            const accessTokenExpiry = rememberMe
-                ? 30 * 24 * 60 * 60 * 1000
-                : 24 * 60 * 60 * 1000;
-            const refreshTokenExpiry = rememberMe
-                ? 30 * 24 * 60 * 60 * 1000
-                : 7 * 24 * 60 * 60 * 1000;
-
-            res.cookie("token", accessToken, {
-                ...cookieOptions,
-                maxAge: accessTokenExpiry,
-            });
-
-            res.cookie("refreshToken", refreshToken, {
-                ...cookieOptions,
-                maxAge: refreshTokenExpiry,
-            });
-
-            console.log("Cookies establecidas:", {
-                token: !!accessToken,
-                refreshToken: !!refreshToken,
-                rememberMe,
-                accessTokenExpiry,
-                refreshTokenExpiry,
-            });
 
             res.json({
                 success: true,
@@ -293,8 +331,6 @@ class AuthController {
                     lastName: user.a_paterno,
                     role: user.nombre_rol || "cliente",
                 },
-                token: accessToken,
-                refreshToken: refreshToken,
             });
         } catch (error) {
             console.error("Error en login:", error);
@@ -334,6 +370,8 @@ class AuthController {
     /**
      * Renueva el access token utilizando un refresh token válido.
      */
+    // En authController.js - método refreshToken modificado
+
     static async refreshToken(req, res) {
         try {
             let refreshToken = req.cookies?.refreshToken;
@@ -387,18 +425,34 @@ class AuthController {
 
             const newAccessToken = TokenGenerator.generateAccessToken(payload);
 
-            // Configurar cookie con la misma duración que el refresh token
+            // ✅ DETECTAR TIPO DE SESIÓN BASADO EN LA COOKIE ORIGINAL
             const originalRefreshExpiry = new Date(tokenExists.expira_en);
             const now = new Date();
             const remainingTime =
                 originalRefreshExpiry.getTime() - now.getTime();
+            const totalOriginalTime = remainingTime; // Tiempo restante
 
-            res.cookie("token", newAccessToken, {
+            // Si el refresh token expira en más de 7 días, es una sesión persistente
+            const isPersistentSession = remainingTime > 7 * 24 * 60 * 60 * 1000;
+
+            const cookieOptions = {
                 httpOnly: true,
                 secure: process.env.NODE_ENV === "production",
-                sameSite: "strict",
-                maxAge: Math.min(remainingTime, 24 * 60 * 60 * 1000), // Máximo 24 horas
-            });
+                sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+                path: "/",
+            };
+
+            if (isPersistentSession) {
+                // Sesión persistente - cookie con expiración
+                res.cookie("token", newAccessToken, {
+                    ...cookieOptions,
+                    maxAge: Math.min(remainingTime, 30 * 24 * 60 * 60 * 1000),
+                });
+            } else {
+                // Sesión temporal - cookie de sesión
+                res.cookie("token", newAccessToken, cookieOptions);
+            }
+
 
             res.json({
                 success: true,
@@ -726,13 +780,15 @@ class AuthController {
         try {
             connection = await getConnection();
             const expiresAt = isPersistent
-                ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 días
-                : new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 horas
+                ? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 días
+                : new Date(Date.now() + 2 * 60 * 60 * 1000); // 2 horas
+
+            const now = new Date();
 
             await connection.execute(
-                `INSERT INTO sesiones (id_usuario, token_sesion, ip, agente_usuario, persistente, expira_en)
-                 VALUES (?, ?, ?, ?, ?, ?)`,
-                [userId, token, ip, userAgent, isPersistent, expiresAt]
+                `INSERT INTO sesiones (id_usuario, token_sesion, ip, agente_usuario, persistente, expira_en, ultima_actividad)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                [userId, token, ip, userAgent, isPersistent, expiresAt, now]
             );
         } catch (error) {
             console.error("Error creando sesión:", error);
@@ -754,6 +810,73 @@ class AuthController {
             );
         } catch (error) {
             console.error("Error eliminando sesión:", error);
+        } finally {
+            if (connection) connection.release();
+        }
+    }
+
+    /**
+     * Limita sesiones concurrentes por usuario
+     */
+    static async limitConcurrentSessions(userId, maxSessions = 5) {
+        let connection;
+        try {
+            connection = await getConnection();
+
+            // Contar sesiones activas
+            const [rows] = await connection.execute(
+                `SELECT COUNT(*) as count FROM sesiones WHERE id_usuario = ? AND expira_en > NOW()`,
+                [userId]
+            );
+
+            const sessionCount = rows[0].count;
+
+            if (sessionCount > maxSessions) {
+                // Eliminar sesiones más antiguas (priorizando por última actividad, luego por creación)
+                await connection.execute(
+                    `DELETE FROM sesiones
+                     WHERE id_usuario = ? AND expira_en > NOW()
+                     ORDER BY COALESCE(ultima_actividad, creado_en) ASC, creado_en ASC
+                     LIMIT ?`,
+                    [userId, sessionCount - maxSessions]
+                );
+
+            }
+        } catch (error) {
+            console.error("Error limitando sesiones:", error);
+        } finally {
+            if (connection) connection.release();
+        }
+    }
+
+    /**
+     * Valida la sesión actual del usuario
+     */
+    static async validateSession(userId, token) {
+        let connection;
+        try {
+            connection = await getConnection();
+
+            const [rows] = await connection.execute(
+                `SELECT * FROM sesiones
+                 WHERE id_usuario = ? AND token_sesion = ? AND expira_en > NOW()`,
+                [userId, token]
+            );
+
+            if (rows.length === 0) {
+                return false;
+            }
+
+            // Actualizar última actividad
+            await connection.execute(
+                `UPDATE sesiones SET ultima_actividad = NOW() WHERE id = ?`,
+                [rows[0].id]
+            );
+
+            return true;
+        } catch (error) {
+            console.error("Error validando sesión:", error);
+            return false;
         } finally {
             if (connection) connection.release();
         }

@@ -117,7 +117,7 @@ export default function RegisterPage() {
     // Mostrar loading mientras se verifica la autenticación
     if (loading) {
         return (
-            <main className="min-h-screen flex items-center justify-center bg-background">
+            <main className="min-h-screen flex items-center justify-center bg-gray-50">
                 <div className="text-center">
                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-accent mx-auto"></div>
                     <p className="mt-4 text-muted">Cargando...</p>
@@ -127,7 +127,7 @@ export default function RegisterPage() {
     }
 
     return (
-        <main className="min-h-screen flex items-center justify-center bg-background px-4 py-8 relative">
+        <main className="min-h-screen flex items-center justify-center bg-gray-50 px-4 py-8 relative">
             {/* ThemeToggle fijo arriba derecha */}
             <div className="fixed top-4 right-4 z-50">
                 <ThemeToggle />

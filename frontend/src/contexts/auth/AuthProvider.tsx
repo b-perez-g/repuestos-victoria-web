@@ -3,195 +3,151 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { AuthContext, User, AuthContextType, RegisterData } from './AuthContext';
-import api from '@/lib/api';
+import api, { clearCSRFToken } from '@/lib/api';
 import toast from 'react-hot-toast';
 import Cookies from 'js-cookie';
-
-// Función helper para decodificar JWT
-function decodeJWT(token: string) {
-  try {
-    const base64Url = token.split('.')[1];
-    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-    const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
-      return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-    }).join(''));
-    return JSON.parse(jsonPayload);
-  } catch (error) {
-    return null;
-  }
-}
-
-// Función helper para verificar si un token ha expirado
-function isTokenExpired(token: string): boolean {
-  const decoded = decodeJWT(token);
-  if (!decoded || !decoded.exp) return true;
-  return Date.now() >= decoded.exp * 1000;
-}
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [isInitialized, setIsInitialized] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
 
-  // Función para extraer user data del token
-  const getUserFromToken = useCallback((token: string): User | null => {
-    const decoded = decodeJWT(token);
-    if (!decoded) return null;
-
-    return {
-      id: decoded.id?.toString() || '',
-      email: decoded.email || '',
-      name: decoded.firstName && decoded.lastName ? 
-        `${decoded.firstName} ${decoded.lastName}` : 
-        decoded.firstName || decoded.email || '',
-      role: decoded.role || 'cliente'
-    };
-  }, []);
-
-  // Función para verificar el estado de autenticación
-  const checkAuthStatus = useCallback(async () => {
+  // ✅ Función para verificar autenticación con el servidor
+  const checkAuth = useCallback(async () => {
     try {
-      console.log('🔍 Verificando estado de autenticación...');
-      const token = Cookies.get('token');
-      
-      if (!token) {
-        console.log('❌ No hay token');
-        setUser(null);
-        setLoading(false);
-        setIsInitialized(true);
-        return;
-      }
+      const response = await api.get('/auth/validate');
 
-      // Verificar si el token ha expirado
-      if (isTokenExpired(token)) {
-        console.log('⏰ Token expirado, intentando renovar...');
-        try {
-          const response = await api.post('/auth/refresh-token');
-          if (response.data.success) {
-            const newToken = Cookies.get('token');
-            if (newToken) {
-              const userData = getUserFromToken(newToken);
-              console.log('✅ Token renovado, usuario:', userData);
-              setUser(userData);
-            }
-          }
-        } catch (refreshError) {
-          console.log('❌ Error renovando token, limpiando cookies');
-          Cookies.remove('token');
-          Cookies.remove('refreshToken');
-          setUser(null);
-        }
-      } else {
-        // Token válido, extraer datos del usuario
-        const userData = getUserFromToken(token);
-        console.log('✅ Token válido, usuario:', userData);
-        setUser(userData);
-      }
-    } catch (error) {
-      console.error('❌ Error verificando autenticación:', error);
-      Cookies.remove('token');
-      Cookies.remove('refreshToken');
-      setUser(null);
-    } finally {
-      setLoading(false);
-      setIsInitialized(true);
-    }
-  }, [getUserFromToken]);
-
-  // Inicializar autenticación solo una vez
-  useEffect(() => {
-    if (!isInitialized) {
-      checkAuthStatus();
-    }
-  }, [checkAuthStatus, isInitialized]);
-
-  // Re-verificar cuando cambia la ruta (para casos edge)
-  useEffect(() => {
-    if (isInitialized && !loading) {
-      const token = Cookies.get('token');
-      const currentUser = user;
-      
-      // Si hay token pero no user, verificar
-      if (token && !currentUser && !isTokenExpired(token)) {
-        console.log('🔄 Detectado token sin usuario, re-verificando...');
-        const userData = getUserFromToken(token);
-        if (userData) {
-          setUser(userData);
-        }
-      }
-      
-      // Si no hay token pero hay user, limpiar
-      if (!token && currentUser) {
-        console.log('🧹 No hay token pero hay usuario, limpiando...');
-        setUser(null);
-      }
-    }
-  }, [pathname, isInitialized, loading, user, getUserFromToken]);
-
-  const login = async (correo: string, contrasena: string, recordar: boolean = false): Promise<void> => {
-    try {
-      console.log('🚪 Intentando login...', { correo, recordar });
-      
-      const response = await api.post('/auth/login', { 
-        email: correo, 
-        password: contrasena, 
-        rememberMe: recordar 
-      });
-      
-      if (response.data.success) {
-        const { token, user: userData } = response.data;
-        
-        console.log('✅ Login exitoso:', userData);
-        
-        // Establecer usuario desde los datos de respuesta
-        const newUser: User = {
-          id: userData.id.toString(),
-          email: userData.email,
-          name: `${userData.firstName || ''} ${userData.lastName || ''}`.trim() || userData.email,
-          role: userData.role || 'cliente'
+      if (response.data.success && response.data.user) {
+        const userData: User = {
+          id: response.data.user.id.toString(),
+          email: response.data.user.email,
+          name: `${response.data.user.firstName || ''} ${response.data.user.lastName || ''}`.trim(),
+          role: response.data.user.role || 'cliente'
         };
-        
-        // Establecer usuario inmediatamente
-        setUser(newUser);
-        
-        // Verificar que las cookies se establecieron
-        setTimeout(() => {
-          const cookieToken = Cookies.get('token');
-          console.log('🍪 Cookie establecida:', !!cookieToken);
-          
-          if (!cookieToken && token) {
-            console.log('⚠️ Cookie no establecida, configurando manualmente');
-            const cookieOptions = {
-              expires: recordar ? 30 : 1,
-              secure: process.env.NODE_ENV === 'production',
-              sameSite: 'strict' as const
-            };
-            
-            Cookies.set('token', token, cookieOptions);
-            if (response.data.refreshToken) {
-              Cookies.set('refreshToken', response.data.refreshToken, {
-                ...cookieOptions,
-                expires: recordar ? 30 : 7
-              });
-            }
-          }
-        }, 100);
-        
-        toast.success('Inicio de sesión exitoso');
-        
-        // Redireccionar después de establecer el usuario
-        setTimeout(() => {
-          if (userData.role === 'admin') {
-            router.push('/admin/dashboard');
-          } else {
-            router.push('/');
-          }
-        }, 150);
+
+        setUser(userData);
+        return userData;
+      } else {
+        setUser(null);
+        return null;
       }
     } catch (error: any) {
-      console.error('❌ Error en login:', error);
+      setUser(null);
+      return null;
+    }
+  }, []);
+
+  const logout = async (): Promise<void> => {
+    try {
+      // Llamar al endpoint de logout
+      await api.post('/auth/logout');
+
+      // Limpiar estado local
+      setUser(null);
+
+      // Limpiar cookies y CSRF token
+      Cookies.remove('token');
+      Cookies.remove('refreshToken');
+      clearCSRFToken();
+
+      toast.success('Sesión cerrada');
+      router.push('/');
+    } catch (error) {
+      // Aunque falle el logout del servidor, limpiar localmente
+      setUser(null);
+      Cookies.remove('token');
+      Cookies.remove('refreshToken');
+      clearCSRFToken();
+
+      toast.success('Sesión cerrada');
+      router.push('/');
+    }
+  };
+
+  // ✅ Inicialización - verificar autenticación
+  useEffect(() => {
+    const initAuth = async () => {
+      await checkAuth();
+      setLoading(false);
+    };
+
+    initAuth();
+  }, [checkAuth]);
+
+  // ✅ Renovación proactiva de token cada 30 minutos (solo si hay user activo)
+  useEffect(() => {
+    if (!user) return;
+
+    const interval = setInterval(async () => {
+      try {
+        console.log('🔄 Renovando token proactivamente...');
+        const response = await axios.post(
+          `${process.env.NEXT_PUBLIC_API_URL}/auth/refresh-token`,
+          {},
+          { withCredentials: true }
+        );
+
+        if (response.data.success) {
+          console.log('✅ Token renovado exitosamente');
+          // Verificar que el usuario siga siendo válido
+          const userCheck = await api.get('/auth/validate');
+          if (!userCheck.data.success || !userCheck.data.user) {
+            console.log('⚠️ Usuario ya no válido después de renovación');
+            await logout();
+          }
+        } else {
+          console.log('❌ Error renovando token');
+          await logout();
+        }
+      } catch (error: any) {
+        console.log('❌ Error en renovación proactiva:', error.message);
+        // Solo hacer logout si es un error de autenticación real
+        if (error.response?.status === 401 || error.response?.status === 403) {
+          toast.error('Tu sesión ha expirado. Por favor, inicia sesión nuevamente.');
+          await logout();
+        }
+        // Para otros errores (red, etc.), no hacer logout
+      }
+    }, 1800000); // 30 minutos = 1800000ms
+
+    return () => clearInterval(interval);
+  }, [user, logout]);
+
+  const login = async (email: string, password: string, rememberMe: boolean = false): Promise<void> => {
+    try {
+      const response = await api.post('/auth/login', {
+        email,
+        password,
+        rememberMe
+      });
+
+      if (response.data.success) {
+        // Esperar un momento para que las cookies se establezcan
+        await new Promise(resolve => setTimeout(resolve, 200));
+
+        // Verificar autenticación
+        const userData = await checkAuth();
+
+        if (userData) {
+          toast.success('Inicio de sesión exitoso');
+
+          // Redireccionar
+          setTimeout(() => {
+            if (userData.role === 'admin') {
+              router.push('/admin/dashboard');
+            } else {
+              router.push('/');
+            }
+          }, 100);
+        } else {
+          throw new Error('No se pudo establecer la sesión');
+        }
+      }
+    } catch (error: any) {
+      const response = error.response?.data;
+      const message = response?.message || error.message || 'Error al iniciar sesión';
+      toast.error(message);
       throw error;
     }
   };
@@ -199,47 +155,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const register = async (userData: RegisterData): Promise<void> => {
     try {
       const response = await api.post('/auth/register', userData);
-      
+
       if (response.data.success) {
         toast.success('Cuenta creada exitosamente. Revisa tu email para verificar tu cuenta.');
+        router.push(`/verify-account?email=${encodeURIComponent(userData.correo)}`);
       }
     } catch (error: any) {
-      console.error('❌ Error en registro:', error);
+      const message = error.response?.data?.message || error.message || 'Error al registrarse';
+      toast.error(message);
       throw error;
     }
   };
 
-  const logout = async (): Promise<void> => {
+  const resendVerification = async (email: string): Promise<boolean> => {
     try {
-      console.log('🚪 Cerrando sesión...');
-      await api.post('/auth/logout');
-    } catch (error) {
-      console.error('⚠️ Error en logout del servidor:', error);
-    } finally {
-      // Limpiar estado local
-      console.log('🧹 Limpiando cookies y estado');
-      Cookies.remove('token');
-      Cookies.remove('refreshToken');
-      setUser(null);
-      toast.success('Sesión cerrada');
-      router.push('/');
+      const response = await api.post('/auth/resend-verification', {
+        email: email.toLowerCase().trim()
+      });
+
+      if (response.data.success) {
+        toast.success('Correo de verificación enviado exitosamente');
+        return true;
+      }
+      return false;
+    } catch (error: any) {
+      const message = error.response?.data?.message || 'Error al enviar el correo de verificación';
+      toast.error(message);
+      return false;
     }
   };
 
   const isAuthenticated = !!user;
-
-  // Debug logs
-  useEffect(() => {
-    if (isInitialized) {
-      console.log('🔐 Estado auth:', { 
-        isAuthenticated, 
-        hasUser: !!user, 
-        loading, 
-        userRole: user?.role,
-        pathname 
-      });
-    }
-  }, [isAuthenticated, user, loading, pathname, isInitialized]);
 
   const value: AuthContextType = {
     user,
@@ -247,7 +193,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     loading,
     login,
     register,
-    logout
+    logout,
+    resendVerification
   };
 
   return (

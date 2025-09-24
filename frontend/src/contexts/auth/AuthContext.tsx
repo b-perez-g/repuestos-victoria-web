@@ -19,9 +19,10 @@ export interface RegisterData {
 export interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
-  login: (correo: string, contrasena: string, recordar?: boolean) => Promise<void>;
+  login: (email: string, password: string, rememberMe?: boolean) => Promise<void>;
   register: (userData: RegisterData) => Promise<void>;
   logout: () => Promise<void>;
+  resendVerification: (email: string) => Promise<boolean>;
   loading: boolean;
 }
 

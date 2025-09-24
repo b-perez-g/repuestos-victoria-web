@@ -94,6 +94,7 @@ CREATE TABLE IF NOT EXISTS `sesiones` (
   `agente_usuario` text DEFAULT NULL,
   `persistente` tinyint(1) DEFAULT 0,
   `expira_en` timestamp NOT NULL,
+  `ultima_actividad` timestamp NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `creado_en` timestamp NULL DEFAULT current_timestamp(),
   `actualizado_en` timestamp NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`id`),
@@ -101,6 +102,9 @@ CREATE TABLE IF NOT EXISTS `sesiones` (
   KEY `idx_token_sesion` (`token_sesion`(100)),
   KEY `idx_usuario` (`id_usuario`),
   KEY `idx_expira` (`expira_en`),
+  KEY `idx_usuario_token_expira` (`id_usuario`, `token_sesion`(100), `expira_en`),
+  KEY `idx_ultima_actividad` (`ultima_actividad`),
+  KEY `idx_expira_actividad` (`expira_en`, `ultima_actividad`),
   CONSTRAINT `sesiones_ibfk_1` FOREIGN KEY (`id_usuario`) REFERENCES `usuarios` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 
@@ -163,6 +167,28 @@ CREATE TABLE IF NOT EXISTS `categorias` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 
 -- --------------------------------------------------------
+-- Estructura de tabla para `subcategorias`
+-- --------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `subcategorias` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `id_categoria` int(11) NOT NULL,
+  `nombre` varchar(100) NOT NULL,
+  `descripcion` text DEFAULT NULL,
+  `slug` varchar(100) NOT NULL,
+  `icono` varchar(50) DEFAULT NULL,
+  `activa` tinyint(1) DEFAULT 1,
+  `orden` int(11) DEFAULT 0,
+  `creado_en` timestamp NULL DEFAULT current_timestamp(),
+  `actualizado_en` timestamp NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `slug` (`slug`),
+  KEY `id_categoria` (`id_categoria`),
+  KEY `idx_activa` (`activa`),
+  KEY `idx_orden` (`orden`),
+  CONSTRAINT `subcategorias_ibfk_1` FOREIGN KEY (`id_categoria`) REFERENCES `categorias` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+
+-- --------------------------------------------------------
 -- Estructura de tabla para `marcas`
 -- --------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `marcas` (
@@ -202,6 +228,7 @@ CREATE TABLE IF NOT EXISTS `modelos` (
 CREATE TABLE IF NOT EXISTS `productos` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `id_categoria` int(11) NOT NULL,
+  `id_subcategoria` int(11) DEFAULT NULL,
   `nombre` varchar(200) NOT NULL,
   `descripcion` text DEFAULT NULL,
   `precio` decimal(10,2) NOT NULL,
@@ -225,7 +252,9 @@ CREATE TABLE IF NOT EXISTS `productos` (
   KEY `idx_precio` (`precio`),
   KEY `idx_stock` (`stock`),
   FULLTEXT KEY `idx_busqueda` (`nombre`, `descripcion`),
-  CONSTRAINT `productos_ibfk_1` FOREIGN KEY (`id_categoria`) REFERENCES `categorias` (`id`)
+  KEY `id_subcategoria` (`id_subcategoria`),
+  CONSTRAINT `productos_ibfk_1` FOREIGN KEY (`id_categoria`) REFERENCES `categorias` (`id`),
+  CONSTRAINT `productos_ibfk_3` FOREIGN KEY (`id_subcategoria`) REFERENCES `subcategorias` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 
 -- --------------------------------------------------------
@@ -285,11 +314,6 @@ CREATE TABLE IF NOT EXISTS `tipos_comprobante` (
   `activo` tinyint(1) DEFAULT 1,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
-
--- Insertar tipos de comprobante por defecto
-INSERT INTO `tipos_comprobante` (`id`, `nombre`, `descripcion`) VALUES
-(1, 'boleta', 'Boleta de venta para personas naturales'),
-(2, 'factura', 'Factura para empresas y personas jurídicas');
 
 -- --------------------------------------------------------
 -- Estructura de tabla para `pedidos`
@@ -445,33 +469,7 @@ CREATE TABLE IF NOT EXISTS `historial_estados` (
   CONSTRAINT `historial_estados_ibfk_1` FOREIGN KEY (`id_usuario_cambio`) REFERENCES `usuarios` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 
--- --------------------------------------------------------
--- Insertar datos de ejemplo para categorías
--- --------------------------------------------------------
-INSERT INTO `categorias` (`nombre`, `descripcion`, `slug`, `activa`, `orden`) VALUES
-('Motor', 'Repuestos y componentes del motor', 'motor', 1, 1),
-('Frenos', 'Sistemas de frenado y componentes', 'frenos', 1, 2),
-('Suspensión', 'Amortiguadores, resortes y componentes de suspensión', 'suspension', 1, 3),
-('Transmisión', 'Cajas de cambio, embragues y transmisión', 'transmision', 1, 4),
-('Eléctrico', 'Componentes eléctricos y electrónicos', 'electrico', 1, 5),
-('Carrocería', 'Paneles, luces y accesorios de carrocería', 'carroceria', 1, 6),
-('Filtros', 'Filtros de aire, aceite, combustible', 'filtros', 1, 7),
-('Aceites', 'Lubricantes y aceites para motor', 'aceites', 1, 8);
 
--- --------------------------------------------------------
--- Insertar marcas de ejemplo
--- --------------------------------------------------------
-INSERT INTO `marcas` (`nombre`, `activa`) VALUES
-('Toyota', 1),
-('Chevrolet', 1),
-('Ford', 1),
-('Hyundai', 1),
-('Nissan', 1),
-('Volkswagen', 1),
-('Kia', 1),
-('Suzuki', 1),
-('Mitsubishi', 1),
-('Mazda', 1);
 
 -- --------------------------------------------------------
 -- Funciones y triggers para automatización
@@ -523,7 +521,7 @@ DELIMITER ;
 
 -- Vista de productos con información completa
 CREATE VIEW `vista_productos_completa` AS
-SELECT 
+SELECT
     p.id,
     p.sku,
     p.nombre,
@@ -534,10 +532,57 @@ SELECT
     p.destacado,
     c.nombre as categoria,
     c.slug as categoria_slug,
+    s.nombre as subcategoria,
+    s.slug as subcategoria_slug,
+    s.icono as subcategoria_icono,
     p.creado_en,
     p.actualizado_en
 FROM productos p
-INNER JOIN categorias c ON p.id_categoria = c.id;
+INNER JOIN categorias c ON p.id_categoria = c.id
+LEFT JOIN subcategorias s ON p.id_subcategoria = s.id;
+
+-- Vista de categorías con conteo de subcategorías
+CREATE VIEW `vista_categorias_completa` AS
+SELECT
+    c.id,
+    c.nombre,
+    c.descripcion,
+    c.slug,
+    c.imagen_url,
+    c.activa,
+    c.orden,
+    COUNT(s.id) as total_subcategorias,
+    COUNT(p.id) as total_productos,
+    c.creado_en,
+    c.actualizado_en
+FROM categorias c
+LEFT JOIN subcategorias s ON c.id = s.id_categoria AND s.activa = 1
+LEFT JOIN productos p ON c.id = p.id_categoria AND p.activo = 1
+WHERE c.activa = 1
+GROUP BY c.id, c.nombre, c.descripcion, c.slug, c.imagen_url, c.activa, c.orden, c.creado_en, c.actualizado_en
+ORDER BY c.orden;
+
+-- Vista de subcategorías con información de categoría padre
+CREATE VIEW `vista_subcategorias_completa` AS
+SELECT
+    s.id,
+    s.nombre,
+    s.descripcion,
+    s.slug,
+    s.icono,
+    s.activa,
+    s.orden,
+    c.nombre as categoria,
+    c.slug as categoria_slug,
+    COUNT(p.id) as total_productos,
+    s.creado_en,
+    s.actualizado_en
+FROM subcategorias s
+INNER JOIN categorias c ON s.id_categoria = c.id
+LEFT JOIN productos p ON s.id = p.id_subcategoria AND p.activo = 1
+WHERE s.activa = 1 AND c.activa = 1
+GROUP BY s.id, s.nombre, s.descripcion, s.slug, s.icono, s.activa, s.orden, c.nombre, c.slug, s.creado_en, s.actualizado_en
+ORDER BY c.orden, s.orden;
 
 -- Vista de pedidos con información del usuario
 CREATE VIEW `vista_pedidos_completa` AS
@@ -558,8 +603,136 @@ LEFT JOIN usuarios u ON p.id_usuario = u.id;
 -- Índices adicionales para optimización
 -- --------------------------------------------------------
 ALTER TABLE `productos` ADD INDEX `idx_categoria_activo` (`id_categoria`, `activo`);
+ALTER TABLE `productos` ADD INDEX `idx_subcategoria_activo` (`id_subcategoria`, `activo`);
+ALTER TABLE `productos` ADD INDEX `idx_categoria_subcategoria` (`id_categoria`, `id_subcategoria`);
+ALTER TABLE `subcategorias` ADD INDEX `idx_categoria_activa` (`id_categoria`, `activa`);
+ALTER TABLE `subcategorias` ADD INDEX `idx_categoria_orden` (`id_categoria`, `orden`);
 ALTER TABLE `pedidos` ADD INDEX `idx_usuario_fecha` (`id_usuario`, `fecha`);
 ALTER TABLE `logs_auditoria` ADD INDEX `idx_accion_fecha` (`accion`, `creado_en`);
+
+-- --------------------------------------------------------
+-- Procedimientos de mantenimiento para sesiones
+-- --------------------------------------------------------
+
+DELIMITER $$
+
+-- Procedimiento para limpiar sesiones inactivas
+DROP PROCEDURE IF EXISTS `LimpiarSesionesInactivas`$$
+CREATE PROCEDURE `LimpiarSesionesInactivas`(
+    IN minutos_inactividad INT DEFAULT 60
+)
+BEGIN
+    DECLARE sesiones_eliminadas INT DEFAULT 0;
+
+    -- Limpiar sesiones expiradas por tiempo
+    DELETE FROM sesiones WHERE expira_en < NOW();
+    SET sesiones_eliminadas = ROW_COUNT();
+
+    -- Limpiar sesiones inactivas (más de X minutos sin actividad)
+    DELETE FROM sesiones
+    WHERE ultima_actividad < DATE_SUB(NOW(), INTERVAL minutos_inactividad MINUTE)
+    AND expira_en > NOW(); -- Solo si no han expirado por tiempo
+
+    SET sesiones_eliminadas = sesiones_eliminadas + ROW_COUNT();
+
+    SELECT CONCAT('Sesiones eliminadas: ', sesiones_eliminadas) as resultado;
+END$$
+
+-- Procedimiento para obtener estadísticas de sesiones
+DROP PROCEDURE IF EXISTS `EstadisticasSesiones`$$
+CREATE PROCEDURE `EstadisticasSesiones`()
+BEGIN
+    SELECT
+        COUNT(*) as total_sesiones,
+        COUNT(CASE WHEN expira_en > NOW() THEN 1 END) as sesiones_activas,
+        COUNT(CASE WHEN expira_en <= NOW() THEN 1 END) as sesiones_expiradas,
+        COUNT(CASE WHEN persistente = 1 THEN 1 END) as sesiones_persistentes,
+        COUNT(CASE WHEN persistente = 0 THEN 1 END) as sesiones_temporales,
+        COUNT(CASE WHEN ultima_actividad > DATE_SUB(NOW(), INTERVAL 1 HOUR) THEN 1 END) as activas_ultima_hora,
+        COUNT(CASE WHEN ultima_actividad > DATE_SUB(NOW(), INTERVAL 1 DAY) THEN 1 END) as activas_ultimo_dia
+    FROM sesiones;
+
+    -- Top 5 usuarios con más sesiones activas
+    SELECT
+        u.correo,
+        u.nombres,
+        COUNT(*) as sesiones_activas,
+        MAX(s.ultima_actividad) as ultima_actividad
+    FROM sesiones s
+    JOIN usuarios u ON s.id_usuario = u.id
+    WHERE s.expira_en > NOW()
+    GROUP BY s.id_usuario, u.correo, u.nombres
+    ORDER BY sesiones_activas DESC, ultima_actividad DESC
+    LIMIT 5;
+END$$
+
+DELIMITER ;
+
+-- --------------------------------------------------------
+-- Configuración de limpieza automática
+-- --------------------------------------------------------
+
+-- Habilitar el programador de eventos
+SET GLOBAL event_scheduler = ON;
+
+-- Crear evento de limpieza automática cada 30 minutos
+DROP EVENT IF EXISTS `ev_limpiar_sesiones_inactivas`;
+
+CREATE EVENT `ev_limpiar_sesiones_inactivas`
+ON SCHEDULE EVERY 30 MINUTE
+STARTS CURRENT_TIMESTAMP
+DO
+CALL LimpiarSesionesInactivas(120); -- 2 horas de inactividad
+
+-- --------------------------------------------------------
+-- Procedimiento para limpieza general de datos expirados
+-- --------------------------------------------------------
+
+DELIMITER $$
+
+DROP PROCEDURE IF EXISTS `LimpiezaGeneral`$$
+CREATE PROCEDURE `LimpiezaGeneral`()
+BEGIN
+    DECLARE resultado_msg TEXT DEFAULT '';
+    DECLARE sesiones_eliminadas INT DEFAULT 0;
+    DECLARE tokens_eliminados INT DEFAULT 0;
+    DECLARE logs_eliminados INT DEFAULT 0;
+
+    -- Limpiar sesiones expiradas
+    DELETE FROM sesiones WHERE expira_en < NOW();
+    SET sesiones_eliminadas = ROW_COUNT();
+
+    -- Limpiar tokens de refresco expirados
+    DELETE FROM tokens_refresco WHERE expira_en < NOW();
+    SET tokens_eliminados = ROW_COUNT();
+
+    -- Limpiar logs de auditoría mayores a 90 días
+    DELETE FROM logs_auditoria WHERE creado_en < DATE_SUB(NOW(), INTERVAL 90 DAY);
+    SET logs_eliminados = ROW_COUNT();
+
+    SET resultado_msg = CONCAT(
+        'Limpieza completada - ',
+        'Sesiones: ', sesiones_eliminadas, ', ',
+        'Tokens: ', tokens_eliminados, ', ',
+        'Logs: ', logs_eliminados
+    );
+
+    SELECT resultado_msg as resultado;
+END$$
+
+DELIMITER ;
+
+-- --------------------------------------------------------
+-- Crear evento para limpieza general diaria
+-- --------------------------------------------------------
+
+DROP EVENT IF EXISTS `ev_limpieza_general_diaria`;
+
+CREATE EVENT `ev_limpieza_general_diaria`
+ON SCHEDULE EVERY 1 DAY
+STARTS (CURRENT_DATE + INTERVAL 1 DAY + INTERVAL 2 HOUR)
+DO
+CALL LimpiezaGeneral();
 
 /*!40103 SET TIME_ZONE=IFNULL(@OLD_TIME_ZONE, 'system') */;
 /*!40101 SET SQL_MODE=IFNULL(@OLD_SQL_MODE, '') */;
